@@ -695,9 +695,19 @@
       </div>
     </div>
 
-    <!-- 5. Preview -->
+    <!-- 5. Border radius -->
     <div>
-      <div class="section-label"><span>⑤</span> Предпросмотр</div>
+      <div class="section-label"><span>⑤</span> Скругление углов</div>
+      <div class="range-row">
+        <label>Радиус</label>
+        <input type="range" id="borderRadius" min="0" max="100" value="0" step="1" />
+        <span class="range-value" id="borderRadiusVal">0px</span>
+      </div>
+    </div>
+
+    <!-- 6. Preview -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="section-label" style="margin-bottom:0"><span>⑥</span> Предпросмотр</div>
       <div class="preview-wrap" id="previewWrap">
         <div class="preview-placeholder" id="previewPlaceholder">
           <span class="ph-icon">🖼</span>
@@ -741,6 +751,7 @@ const state = {
   textColor: '#ffffff',
   textPosition: 'middle-center',
   textShadow: false,
+  borderRadius: 0,
   busy: false
 };
 
@@ -975,6 +986,15 @@ document.getElementById('shadowToggleRow').addEventListener('click', () => {
   drawPreview();
 });
 
+// ---- Border radius ----
+const borderRadiusRange = document.getElementById('borderRadius');
+const borderRadiusVal   = document.getElementById('borderRadiusVal');
+borderRadiusRange.addEventListener('input', () => {
+  state.borderRadius = +borderRadiusRange.value;
+  borderRadiusVal.textContent = state.borderRadius + 'px';
+  drawPreview();
+});
+
 // ---- Position grid ----
 posGrid.querySelectorAll('.pos-cell').forEach(cell => {
   cell.addEventListener('click', () => {
@@ -1066,6 +1086,12 @@ function renderFullSize() {
     c.width = W; c.height = H;
     const ctx = c.getContext('2d');
 
+    // Скругление углов — clip
+    if (state.borderRadius > 0) {
+      roundRect(ctx, 0, 0, W, H, state.borderRadius);
+      ctx.clip();
+    }
+
     const drawTextAndExport = () => {
       if (state.text) {
         const padding = Math.round(W * 0.06);
@@ -1147,6 +1173,14 @@ function drawPreview() {
   previewCanvas.height = CANVAS_H;
 
   const ctx = previewCanvas.getContext('2d');
+
+  // Скругление углов — clip (масштабированный радиус)
+  ctx.save();
+  if (state.borderRadius > 0) {
+    const scale = CANVAS_W / fmt.w;
+    roundRect(ctx, 0, 0, CANVAS_W, CANVAS_H, state.borderRadius * scale);
+    ctx.clip();
+  }
 
   // Dark background fallback
   ctx.fillStyle = '#181820';
@@ -1240,6 +1274,7 @@ function drawPreview() {
     draw();
   }
 
+  ctx.restore();
   previewCanvas.style.display = 'block';
   previewPlaceholder.style.display = 'none';
 }
@@ -1269,6 +1304,21 @@ function wrapText(ctx, text, maxW) {
     if (cur) lines.push(cur);
   }
   return lines.length ? lines : [''];
+}
+
+function roundRect(ctx, x, y, w, h, r) {
+  r = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 // ---- Helpers ----
