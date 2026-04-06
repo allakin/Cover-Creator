@@ -207,7 +207,7 @@
   /* ---------- Format toggle ---------- */
   .format-group {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 8px;
   }
   .format-btn {
@@ -223,7 +223,8 @@
     transition: border-color .15s, background .15s;
     color: var(--text);
   }
-  .format-btn:hover { border-color: var(--accent-hover); }
+  .format-btn:hover:not(:disabled) { border-color: var(--accent-hover); }
+  .format-btn:disabled { opacity: .4; cursor: not-allowed; }
   .format-btn.active {
     border-color: var(--accent);
     background: rgba(124,92,252,.1);
@@ -614,6 +615,11 @@
           <div class="label">4 : 3</div>
           <div class="dims">1600 × 1200</div>
         </button>
+        <button class="format-btn format-btn--original" data-fmt="original" id="formatOriginal" disabled>
+          <div class="format-visual format-visual--original" id="formatOriginalVisual" style="width:48px;height:48px;"></div>
+          <div class="label">Как у фона</div>
+          <div class="dims" id="formatOriginalDims">Нет изображения</div>
+        </button>
       </div>
     </div>
 
@@ -739,8 +745,9 @@ const state = {
 };
 
 const FORMATS = {
-  '16:9': { w: 1920, h: 1080, label: 'Widescreen 16:9 (1920×1080)' },
-  '4:3':  { w: 1600, h: 1200, label: 'Классический 4:3 (1600×1200)' }
+  '16:9':     { w: 1920, h: 1080 },
+  '4:3':      { w: 1600, h: 1200 },
+  'original': { w: 1920, h: 1080 }  // обновляется динамически при загрузке фона
 };
 
 const POS_LABELS = {
@@ -766,6 +773,9 @@ const tabUpload        = document.getElementById('tabUpload');
 const tabSelection     = document.getElementById('tabSelection');
 const selectionZone    = document.getElementById('selectionZone');
 const grabSelectionBtn = document.getElementById('grabSelectionBtn');
+const formatOriginal   = document.getElementById('formatOriginal');
+const formatOriginalVisual = document.getElementById('formatOriginalVisual');
+const formatOriginalDims   = document.getElementById('formatOriginalDims');
 const textInput        = document.getElementById('textInput');
 const fontSizeRange    = document.getElementById('fontSize');
 const fontSizeVal      = document.getElementById('fontSizeVal');
@@ -805,6 +815,14 @@ document.querySelectorAll('.bg-tab').forEach(tab => {
     state.imageDataUrl = null;
     uploadPreview.style.display = 'none';
     previewBadge.style.display = 'none';
+    // Сбрасываем кнопку «Как у фона»
+    formatOriginal.disabled = true;
+    formatOriginalDims.textContent = 'Нет изображения';
+    if (state.format === 'original') {
+      state.format = '16:9';
+      document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+      document.querySelector('[data-fmt="16:9"]').classList.add('active');
+    }
     // Показываем пустое состояние нужного таба
     tabUpload.style.display    = activeTab === 'upload'    ? '' : 'none';
     tabSelection.style.display = activeTab === 'selection' ? '' : 'none';
@@ -845,6 +863,15 @@ removeBtn.addEventListener('click', () => {
   previewBadge.style.display = 'none';
   if (activeTab === 'upload') uploadZone.style.display = '';
   if (activeTab === 'selection') selectionZone.style.display = '';
+  // Сбрасываем кнопку «Как у фона»
+  formatOriginal.disabled = true;
+  formatOriginalDims.textContent = 'Нет изображения';
+  // Если был выбран original — переключаем на 16:9
+  if (state.format === 'original') {
+    state.format = '16:9';
+    document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('[data-fmt="16:9"]').classList.add('active');
+  }
   drawPreview();
   updateCreateBtn();
 });
@@ -862,6 +889,22 @@ function setBackground(dataUrl, base64, badge) {
   } else {
     previewBadge.style.display = 'none';
   }
+
+  // Определяем размер фонового изображения и активируем кнопку «Как у фона»
+  const img = new Image();
+  img.onload = () => {
+    FORMATS['original'] = { w: img.naturalWidth, h: img.naturalHeight };
+    formatOriginalDims.textContent = `${img.naturalWidth} × ${img.naturalHeight}`;
+    // Визуальная пропорция превью (макс 64px)
+    const ratio = img.naturalWidth / img.naturalHeight;
+    const vw = ratio >= 1 ? 64 : Math.round(48 * ratio);
+    const vh = ratio >= 1 ? Math.round(64 / ratio) : 48;
+    formatOriginalVisual.style.width  = vw + 'px';
+    formatOriginalVisual.style.height = vh + 'px';
+    formatOriginal.disabled = false;
+  };
+  img.src = dataUrl;
+
   updateCreateBtn();
   drawPreview();
 }
