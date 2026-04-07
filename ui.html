@@ -728,7 +728,7 @@
   <!-- Footer -->
   <div class="footer">
     <div class="btn-row">
-      <button class="btn btn-secondary" id="cancelBtn">Отмена</button>
+      <button class="btn btn-secondary" id="cancelBtn">Сбросить настройки</button>
       <button class="btn btn-primary" id="createBtn" disabled>
         <span id="createBtnIcon">⬇</span>
         <span id="createBtnText">Скачать PNG</span>
@@ -1034,7 +1034,66 @@ posGrid.querySelectorAll('.pos-cell').forEach(cell => {
 });
 
 // ---- Buttons ----
-cancelBtn.addEventListener('click', () => parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*'));
+cancelBtn.addEventListener('click', () => {
+  // Сброс state
+  state.format = '16:9';
+  state.imageBase64 = null;
+  state.imageDataUrl = null;
+  state.text = '';
+  state.fontSize = 80;
+  state.lineHeight = 1.25;
+  state.fontWeight = 'Bold';
+  state.textColor = '#ffffff';
+  state.textPosition = 'middle-center';
+  state.textShadow = false;
+  state.borderRadius = 0;
+
+  // Сброс UI — фон
+  uploadPreview.style.display = 'none';
+  previewBadge.style.display = 'none';
+  uploadZone.style.display = '';
+  selectionZone.style.display = '';
+  activeTab = 'upload';
+  document.querySelectorAll('.bg-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('[data-tab="upload"]').classList.add('active');
+  tabUpload.style.display = '';
+  tabSelection.style.display = 'none';
+  formatOriginal.disabled = true;
+  formatOriginalDims.textContent = 'Нет изображения';
+
+  // Сброс UI — формат
+  document.querySelectorAll('.format-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-fmt="16:9"]').classList.add('active');
+
+  // Сброс UI — текст
+  textInput.value = '';
+  fontSizeRange.value = 80;
+  fontSizeVal.value = '80';
+  lineHeightRange.value = 1.25;
+  lineHeightVal.value = '1.25';
+  document.querySelectorAll('.weight-btn').forEach(b => b.classList.remove('active'));
+  document.querySelector('[data-weight="Bold"]').classList.add('active');
+  textColorPick.value = '#ffffff';
+  swatches.forEach(s => s.classList.remove('active'));
+  document.querySelector('[data-color="#ffffff"]').classList.add('active');
+  shadowToggle.classList.remove('on');
+
+  // Сброс UI — позиция
+  posGrid.querySelectorAll('.pos-cell').forEach(c => c.classList.remove('active'));
+  posGrid.querySelector('[data-pos="middle-center"]').classList.add('active');
+  posLabelValue.textContent = 'По центру';
+
+  // Сброс UI — радиус
+  borderRadiusRange.value = 0;
+  borderRadiusVal.value = '0';
+
+  // Сброс UI — keep frame
+  keepFrame.checked = false;
+
+  drawPreview();
+  updateCreateBtn();
+  showToast('Настройки сброшены', 'success');
+});
 
 createBtn.addEventListener('click', async () => {
   if (state.busy) return;
@@ -1190,7 +1249,21 @@ function renderFullSize() {
 }
 
 // ---- Preview canvas ----
+let _cachedBgImg = null;
+let _cachedBgUrl = null;
+
 function drawPreview() {
+  // Кэш: загружаем Image один раз, перерисовка всегда синхронная
+  if (state.imageDataUrl && state.imageDataUrl !== _cachedBgUrl) {
+    _cachedBgUrl = state.imageDataUrl;
+    _cachedBgImg = null;
+    const img = new Image();
+    img.onload = () => { _cachedBgImg = img; drawPreview(); };
+    img.src = state.imageDataUrl;
+    return; // дождёмся загрузки
+  }
+  if (!state.imageDataUrl) { _cachedBgImg = null; _cachedBgUrl = null; }
+
   const fmt = FORMATS[state.format] || FORMATS['16:9'];
   const aspect = fmt.w / fmt.h;
   const CANVAS_W = 488;
@@ -1201,7 +1274,7 @@ function drawPreview() {
 
   const ctx = previewCanvas.getContext('2d');
 
-  // Скругление углов — clip (масштабированный радиус)
+  // Скругление углов — clip
   ctx.save();
   if (state.borderRadius > 0) {
     const scale = CANVAS_W / fmt.w;
@@ -1209,25 +1282,33 @@ function drawPreview() {
     ctx.clip();
   }
 
-  // Dark background fallback
-  ctx.fillStyle = '#181820';
-  ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-
-  const draw = () => {
-    if (!state.imageDataUrl) {
-      // No image — show dark bg with grid pattern
-      ctx.fillStyle = '#1e1e28';
-      ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
-      ctx.strokeStyle = '#2a2a36';
-      ctx.lineWidth = 1;
-      for (let x = 0; x < CANVAS_W; x += 20) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,CANVAS_H); ctx.stroke(); }
-      for (let y = 0; y < CANVAS_H; y += 20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CANVAS_W,y); ctx.stroke(); }
+  // Фон
+  if (_cachedBgImg) {
+    const imgAspect = _cachedBgImg.width / _cachedBgImg.height;
+    let sw = CANVAS_W, sh = CANVAS_H, sx = 0, sy = 0;
+    if (imgAspect > aspect) {
+      sh = CANVAS_H;
+      sw = Math.round(sh * imgAspect);
+      sx = -(sw - CANVAS_W) / 2;
+    } else {
+      sw = CANVAS_W;
+      sh = Math.round(sw / imgAspect);
+      sy = -(sh - CANVAS_H) / 2;
     }
+    ctx.drawImage(_cachedBgImg, sx, sy, sw, sh);
+  } else {
+    // Нет изображения — сетка
+    ctx.fillStyle = '#1e1e28';
+    ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
+    ctx.strokeStyle = '#2a2a36';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < CANVAS_W; x += 20) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,CANVAS_H); ctx.stroke(); }
+    for (let y = 0; y < CANVAS_H; y += 20) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(CANVAS_W,y); ctx.stroke(); }
+  }
 
-    if (!state.text) return;
-
-    // Scale font relative to canvas
-    const scale   = CANVAS_W / fmt.w;
+  // Текст
+  if (state.text) {
+    const scale    = CANVAS_W / fmt.w;
     const scaledFs = Math.max(8, Math.round(state.fontSize * scale));
     const padding  = Math.round(CANVAS_W * 0.06);
 
@@ -1249,20 +1330,17 @@ function drawPreview() {
     const vPos  = parts[0];
     const hPos  = parts[1] || 'center';
 
-    const hAlignMap = { left: 'left', center: 'center', right: 'right' };
-    ctx.textAlign    = hAlignMap[hPos] || 'center';
+    ctx.textAlign    = ({ left:'left', center:'center', right:'right' })[hPos] || 'center';
     ctx.textBaseline = 'alphabetic';
 
-    // Text x
     let tx;
-    if (hPos === 'left')   tx = padding;
+    if (hPos === 'left')       tx = padding;
     else if (hPos === 'right') tx = CANVAS_W - padding;
-    else tx = CANVAS_W / 2;
+    else                       tx = CANVAS_W / 2;
 
-    // Wrap text to max width
-    const maxW = CANVAS_W - padding * 2;
-    const lines = wrapText(ctx, state.text, maxW);
-    const lineH = scaledFs * state.lineHeight;
+    const maxW   = CANVAS_W - padding * 2;
+    const lines  = wrapText(ctx, state.text, maxW);
+    const lineH  = scaledFs * state.lineHeight;
     const totalH = lines.length * lineH;
 
     let ty;
@@ -1270,39 +1348,13 @@ function drawPreview() {
     else if (vPos === 'middle') ty = (CANVAS_H - totalH) / 2 + scaledFs;
     else                        ty = CANVAS_H - totalH - padding + scaledFs;
 
-    lines.forEach((line, i) => {
-      ctx.fillText(line, tx, ty + i * lineH);
-    });
+    lines.forEach((line, i) => ctx.fillText(line, tx, ty + i * lineH));
 
     ctx.shadowColor = 'transparent';
     ctx.shadowBlur  = 0;
-  };
-
-  if (state.imageDataUrl) {
-    const img = new Image();
-    img.onload = () => {
-      // Cover-fit
-      const imgAspect = img.width / img.height;
-      let sw = CANVAS_W, sh = CANVAS_H, sx = 0, sy = 0;
-      if (imgAspect > aspect) {
-        sh = CANVAS_H;
-        sw = Math.round(sh * imgAspect);
-        sx = -(sw - CANVAS_W) / 2;
-      } else {
-        sw = CANVAS_W;
-        sh = Math.round(sw / imgAspect);
-        sy = -(sh - CANVAS_H) / 2;
-      }
-      ctx.drawImage(img, sx, sy, sw, sh);
-      draw();
-      ctx.restore();
-    };
-    img.src = state.imageDataUrl;
-  } else {
-    draw();
-    ctx.restore();
   }
 
+  ctx.restore();
   previewCanvas.style.display = 'block';
   previewPlaceholder.style.display = 'none';
 }
