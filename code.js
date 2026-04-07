@@ -1,6 +1,6 @@
 figma.showUI(__html__, {
   width: 520,
-  height: 720,
+  height: 950,
   title: 'Cover Creator'
 });
 

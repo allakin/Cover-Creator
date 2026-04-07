@@ -301,9 +301,18 @@
     font-size: 12px;
     font-weight: 600;
     color: var(--text);
-    min-width: 38px;
-    text-align: right;
+    min-width: 52px;
+    width: 52px;
+    background: var(--surface);
+    border: 1.5px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 4px 6px;
+    font-family: inherit;
+    outline: none;
+    text-align: center;
+    transition: border-color .15s;
   }
+  .range-value:focus { border-color: var(--accent); }
 
   /* ---------- Font weight ---------- */
   .weight-row {
@@ -434,16 +443,13 @@
 
   /* ---------- Preview canvas ---------- */
   .preview-wrap {
-    background: var(--surface);
-    border-radius: var(--radius);
-    overflow: hidden;
+    background: transparent;
     position: relative;
     line-height: 0;
   }
   .preview-wrap canvas {
     width: 100%;
     display: block;
-    border-radius: var(--radius);
   }
   .preview-placeholder {
     width: 100%;
@@ -632,14 +638,14 @@
       <!-- Font size + weight -->
       <div style="display:flex;flex-direction:column;gap:10px">
         <div class="range-row">
-          <label>Размер шрифта</label>
+          <label>Размер шрифта (px)</label>
           <input type="range" id="fontSize" min="24" max="200" value="80" step="2" />
-          <span class="range-value" id="fontSizeVal">80px</span>
+          <input class="range-value" id="fontSizeVal" value="80" data-suffix="px" />
         </div>
         <div class="range-row">
           <label>Интерлиньяж</label>
           <input type="range" id="lineHeight" min="0.8" max="3" value="1.25" step="0.05" />
-          <span class="range-value" id="lineHeightVal">1.25</span>
+          <input class="range-value" id="lineHeightVal" value="1.25" />
         </div>
         <div class="weight-row">
           <label>Толщина</label>
@@ -699,9 +705,9 @@
     <div>
       <div class="section-label"><span>⑤</span> Скругление углов</div>
       <div class="range-row">
-        <label>Радиус</label>
+        <label>Радиус (px)</label>
         <input type="range" id="borderRadius" min="0" max="100" value="0" step="1" />
-        <span class="range-value" id="borderRadiusVal">0px</span>
+        <input class="range-value" id="borderRadiusVal" value="0" data-suffix="px" />
       </div>
     </div>
 
@@ -939,7 +945,14 @@ textInput.addEventListener('input', () => { state.text = textInput.value; drawPr
 // ---- Font size ----
 fontSizeRange.addEventListener('input', () => {
   state.fontSize = +fontSizeRange.value;
-  fontSizeVal.textContent = state.fontSize + 'px';
+  fontSizeVal.value = state.fontSize;
+  drawPreview();
+});
+fontSizeVal.addEventListener('change', () => {
+  const v = clamp(parseInt(fontSizeVal.value, 10), 24, 200);
+  state.fontSize = v;
+  fontSizeVal.value = v;
+  fontSizeRange.value = v;
   drawPreview();
 });
 
@@ -948,7 +961,14 @@ const lineHeightRange = document.getElementById('lineHeight');
 const lineHeightVal   = document.getElementById('lineHeightVal');
 lineHeightRange.addEventListener('input', () => {
   state.lineHeight = +lineHeightRange.value;
-  lineHeightVal.textContent = state.lineHeight.toFixed(2);
+  lineHeightVal.value = state.lineHeight.toFixed(2);
+  drawPreview();
+});
+lineHeightVal.addEventListener('change', () => {
+  const v = clamp(parseFloat(lineHeightVal.value), 0.8, 3);
+  state.lineHeight = v;
+  lineHeightVal.value = v.toFixed(2);
+  lineHeightRange.value = v;
   drawPreview();
 });
 
@@ -991,7 +1011,14 @@ const borderRadiusRange = document.getElementById('borderRadius');
 const borderRadiusVal   = document.getElementById('borderRadiusVal');
 borderRadiusRange.addEventListener('input', () => {
   state.borderRadius = +borderRadiusRange.value;
-  borderRadiusVal.textContent = state.borderRadius + 'px';
+  borderRadiusVal.value = state.borderRadius;
+  drawPreview();
+});
+borderRadiusVal.addEventListener('change', () => {
+  const v = clamp(parseInt(borderRadiusVal.value, 10), 0, 100);
+  state.borderRadius = v;
+  borderRadiusVal.value = v;
+  borderRadiusRange.value = v;
   drawPreview();
 });
 
@@ -1268,13 +1295,14 @@ function drawPreview() {
       }
       ctx.drawImage(img, sx, sy, sw, sh);
       draw();
+      ctx.restore();
     };
     img.src = state.imageDataUrl;
   } else {
     draw();
+    ctx.restore();
   }
 
-  ctx.restore();
   previewCanvas.style.display = 'block';
   previewPlaceholder.style.display = 'none';
 }
@@ -1320,6 +1348,8 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.quadraticCurveTo(x, y, x + r, y);
   ctx.closePath();
 }
+
+function clamp(v, min, max) { return isNaN(v) ? min : Math.min(max, Math.max(min, v)); }
 
 // ---- Helpers ----
 function updateCreateBtn() {
